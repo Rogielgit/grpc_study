@@ -11,6 +11,8 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"strconv"
+	"time"
 )
 
 func loadTLSCredentials() (credentials.TransportCredentials, error) {
@@ -46,8 +48,35 @@ func main() {
 	defer conn.Close()
 
 	c := protobf.NewGreetServiceClient(conn)
-	doServerStream(c)
+	doClientStreaming(c)
+	//doServerStream(c)
 	//doUnaryConnection(c)
+}
+
+func doClientStreaming(c protobf.GreetServiceClient) {
+	fmt.Println("Starting client streaming")
+
+	stream, err := c.ClientStreamGreet(context.Background())
+	if err != nil {
+		log.Fatal("error while calling client streammig RPC: %v", err)
+	}
+
+	for i := 0; i < 10; i++ {
+		g := protobf.Greeting{FirstName: "Test_First_name" + strconv.Itoa(i), LastName: "Test_last_name" + strconv.Itoa(i)}
+		req := protobf.ClientStreamGreetRequest{
+			Greeting: &g,
+		}
+
+		fmt.Printf("seding the request %v\n", req)
+		stream.Send(&req)
+		time.Sleep(1000 * time.Millisecond)
+	}
+
+	res, err := stream.CloseAndRecv()
+	if err != nil {
+		log.Fatal("error while calling client streammig RPC: %v", err)
+	}
+	fmt.Printf("response:  %v", res)
 
 }
 

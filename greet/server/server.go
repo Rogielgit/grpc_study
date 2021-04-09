@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"io"
 	"log"
 	"net"
 	"strconv"
@@ -15,6 +16,28 @@ import (
 
 type server struct {
 	protobf.UnimplementedGreetServiceServer
+}
+
+func (s *server) ClientStreamGreet(stream protobf.GreetService_ClientStreamGreetServer) error {
+	fmt.Println("ClientStreamGreet was invoked")
+	result := ""
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			return stream.SendAndClose(&protobf.ClientStreamGreetResponse{
+				Result: result,
+			})
+		}
+
+		if err != nil {
+			log.Fatal("error while getting client stream")
+		}
+
+		firstName := req.Greeting.GetFirstName()
+		result += "Hello " + firstName + "!"
+	}
+
+	return nil
 }
 
 func (s *server) GreetManyTimes(req *protobf.GreetManyTimesRequest, stream protobf.GreetService_GreetManyTimesServer) error {
