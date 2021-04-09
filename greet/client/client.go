@@ -2,18 +2,44 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"example.com/grpc_study/greet/protobf"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"io"
+	"io/ioutil"
 	"log"
 )
 
-func main() {
+func loadTLSCredentials() (credentials.TransportCredentials, error) {
+	pemCA, err := ioutil.ReadFile("cert/ca-cert.pem")
+	if err != nil {
+		return nil, err
+	}
 
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(pemCA) {
+		return nil, fmt.Errorf("Failed to add server CA's certificate!!")
+	}
+
+	config := &tls.Config{
+		RootCAs: certPool,
+	}
+
+	return credentials.NewTLS(config), nil
+}
+
+func main() {
 	fmt.Print("Hello I'm a client!!\n")
 
-	conn, err := grpc.Dial("localhost:5051", grpc.WithInsecure())
+	tlsCred, err := loadTLSCredentials()
+	if err != nil {
+		log.Fatal("cannot load TLS credentials: %v", err)
+	}
+
+	conn, err := grpc.Dial("0.0.0.0:5051", grpc.WithTransportCredentials(tlsCred))
 	if err != nil {
 		log.Fatal("could not connect to server %v", err)
 	}
@@ -34,10 +60,7 @@ func doServerStream(c protobf.GreetServiceClient) {
 	resp, err := c.GreetManyTimes(context.Background(), &req)
 	if err != nil {
 		log.Fatal("error while calling Greet streammig RPC: %v", err)
-
 	}
-
-
 
 	for {
 		streamRes, err := resp.Recv()
@@ -47,6 +70,7 @@ func doServerStream(c protobf.GreetServiceClient) {
 
 		if err != nil {
 			log.Fatal("error while reading server stream RPC: %v", err)
+
 		}
 
 		log.Printf("Response from server: %v", streamRes.GetResult())

@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"example.com/grpc_study/greet/protobf"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"log"
 	"net"
 	"strconv"
@@ -16,8 +18,9 @@ type server struct {
 }
 
 func (s *server) GreetManyTimes(req *protobf.GreetManyTimesRequest, stream protobf.GreetService_GreetManyTimesServer) error {
-	fmt.Printf("Greet server streaming func was called!!")
+	fmt.Printf("Greet server streaming func was called!!\n")
 	firstName := req.Greeting.GetFirstName()
+
 	for i := 0; i < 20; i++ {
 		stringResp := "Hello " + firstName + " number " + strconv.Itoa(i)
 
@@ -26,7 +29,7 @@ func (s *server) GreetManyTimes(req *protobf.GreetManyTimesRequest, stream proto
 		}
 
 		stream.Send(&res)
-		time.Sleep(1000 * time.Microsecond)
+		time.Sleep(2000 * time.Millisecond)
 	}
 
 	return nil
@@ -44,6 +47,20 @@ func (s *server) Greet(ctx context.Context, req *protobf.GreetRequest) (*protobf
 	}, nil
 }
 
+func loadTLSCredentials() (credentials.TransportCredentials, error) {
+	serverCert, err := tls.LoadX509KeyPair("cert/server-cert.pem", "cert/server-key.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	config := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.NoClientCert,
+	}
+
+	return credentials.NewTLS(config), nil
+}
+
 func main() {
 	fmt.Print("Starting the application!!\n")
 
@@ -52,8 +69,12 @@ func main() {
 		log.Fatal("Failed to listen: %v", err)
 	}
 
-	s := grpc.NewServer()
-	_ = s
+	tlsCred, err := loadTLSCredentials()
+	if err != nil {
+		log.Fatal("cannot load TLS credentials!")
+	}
+
+	s := grpc.NewServer(grpc.Creds(tlsCred))
 	protobf.RegisterGreetServiceServer(s, &server{})
 
 	if err = s.Serve(lis); err != nil {
