@@ -24,12 +24,19 @@ message GreetManyTimesResponse{
     string result = 1;
 }
 
-
 message ClientStreamGreetRequest {
     Greeting greeting = 1;
 }
 
 message ClientStreamGreetResponse{
+    string result = 1;
+}
+
+message BiStreamGreetRequest {
+    Greeting greeting = 1;
+}
+
+message BiStreamGreetResponse{
     string result = 1;
 }
 
@@ -42,5 +49,8 @@ service GreetService {
 
     //Client streaming
     rpc ClientStreamGreet (stream ClientStreamGreetRequest) returns (ClientStreamGreetResponse) {};
+
+    //Bi-directional streaming
+    rpc BiStreamGreet (stream BiStreamGreetRequest) returns (stream BiStreamGreetResponse) {};
 
 }

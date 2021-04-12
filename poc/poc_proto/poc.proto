@@ -1,0 +1,36 @@
+syntax="proto3";
+
+
+package poc;
+
+option go_package="poc/poc_proto";
+
+
+message CheckWork {
+    bool hasWork = 1; 
+}
+
+message CheckWorkResponse {
+    CheckWork check = 1;
+}
+
+message CheckWorkRequest {
+
+}
+
+message DoWorkRequest {
+    string network = 1;
+
+}
+
+message DoWorkResponse{
+    string message = 1;
+}
+
+service CheckService {
+    rpc HasWork (CheckWorkRequest) returns (CheckWorkResponse) {};
+    rpc DoWork (stream DoWorkRequest) returns (DoWorkResponse) {};
+}
+
+
+

@@ -30,7 +30,7 @@ func (s *server) ClientStreamGreet(stream protobf.GreetService_ClientStreamGreet
 		}
 
 		if err != nil {
-			log.Fatal("error while getting client stream")
+			return nil
 		}
 
 		firstName := req.Greeting.GetFirstName()
