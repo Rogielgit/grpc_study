@@ -73,7 +73,7 @@ func (s *server) DoWork(stream poc_proto.CheckService_DoWorkServer) error {
 
 func checkWork() bool {
 	rand.Seed(time.Now().UnixNano())
-	if rand.Intn(1000) > 500 {
+	if rand.Intn(1000) > 800 {
 		return true
 	}
 	return false

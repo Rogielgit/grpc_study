@@ -30,7 +30,7 @@ func main() {
 
 	c := poc_proto.NewCheckServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) //Deadline
 	defer cancel()
 	fmt.Println("Performing unary request")
 
@@ -68,7 +68,7 @@ func main() {
 
 		default:
 			fmt.Println("client does not have work to do!!")
-			time.Sleep(1000 * time.Millisecond)
+			time.Sleep(2000 * time.Millisecond)
 		}
 	}
 }
