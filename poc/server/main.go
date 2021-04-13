@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"example.com/grpc_study/poc/poc_proto"
 	"fmt"
+	"google.golang.org/grpc/credentials"
 	"io"
 	"log"
 	"math/rand"
@@ -76,13 +78,32 @@ func hasWorkToClient() bool {
 	return false
 }
 
+func loadTLSCredentials() (credentials.TransportCredentials, error) {
+	serverCert, err := tls.LoadX509KeyPair("cert/server-cert.pem", "cert/server-key.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	config := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		ClientAuth:   tls.NoClientCert,
+	}
+
+	return credentials.NewTLS(config), nil
+}
+
 func main() {
 	lis, err := net.Listen("tcp", "0.0.0.0:5051")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	s := grpc.NewServer(grpc.KeepaliveEnforcementPolicy(kaep), grpc.KeepaliveParams(kasp))
+	creds, err := loadTLSCredentials()
+	if err != nil {
+		log.Fatalf("cannot load the credentials!!\n")
+	}
+
+	s := grpc.NewServer(grpc.KeepaliveEnforcementPolicy(kaep), grpc.KeepaliveParams(kasp), grpc.Creds(creds))
 	poc_proto.RegisterCheckServiceServer(s, &server{})
 
 	if err := s.Serve(lis); err != nil {

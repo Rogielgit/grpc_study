@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"example.com/grpc_study/poc/poc_proto"
 	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"strconv"
@@ -24,10 +28,16 @@ var kacp = keepalive.ClientParameters{
 
 func main() {
 
-	conn, err := grpc.Dial("0.0.0.0:5051", grpc.WithInsecure(), grpc.WithKeepaliveParams(kacp))
+	creds, err := loadTLSCredentials()
+	if err != nil {
+		log.Fatalf("client could not load the credential properly: %v\n", err)
+	}
+
+	conn, err := grpc.Dial("0.0.0.0:5051", grpc.WithKeepaliveParams(kacp), grpc.WithTransportCredentials(creds))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
+
 	defer conn.Close()
 
 	c := poc_proto.NewCheckServiceClient(conn)
@@ -104,4 +114,22 @@ func doWork(c poc_proto.CheckServiceClient, clientID int) {
 		log.Fatalf("error while receiving response from server", errResp)
 	}
 	fmt.Printf("server response to client %v: %v\n ", clientID, endResp.GetMessage())
+}
+
+func loadTLSCredentials() (credentials.TransportCredentials, error) {
+	pemCA, err := ioutil.ReadFile("cert/ca-cert.pem")
+	if err != nil {
+		return nil, err
+	}
+
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(pemCA) {
+		return nil, fmt.Errorf("Failed to add server CA's certificate!!")
+	}
+
+	config := &tls.Config{
+		RootCAs: certPool,
+	}
+
+	return credentials.NewTLS(config), nil
 }
