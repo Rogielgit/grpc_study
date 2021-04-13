@@ -4,7 +4,9 @@ import (
 	"context"
 	"example.com/grpc_study/poc/poc_proto"
 	"fmt"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/status"
 	"log"
 	"math/rand"
 	"strconv"
@@ -30,45 +32,76 @@ func main() {
 
 	c := poc_proto.NewCheckServiceClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) //Deadline
-	defer cancel()
-	fmt.Println("Performing unary request")
+	fmt.Println("Performing client requests")
 
 	rand.Seed(time.Now().UnixNano())
 	clientID := rand.Intn(1000)
 	fmt.Printf("clientID %d\n", clientID)
 
 	for {
-		res, err := c.HasWork(ctx, &poc_proto.CheckWorkRequest{})
-		if err != nil {
-			log.Printf("unexpected error from HasWork: %v", err)
-			for {
-				if conn.GetState() == connectivity.Ready {
-					res, _ = c.HasWork(ctx, &poc_proto.CheckWorkRequest{})
-					break
-				} else {
-					time.Sleep(2000 * time.Millisecond)
-					fmt.Println("trying to reconnect to the server")
-				}
-			}
-		}
+		res := getWorkResponse(conn, c)
 		switch {
 		case res.GetCheck().HasWork:
-			fmt.Println("client has work to do!!")
-			for i := 0; i < 10; i++ {
-				network := strconv.Itoa(clientID) + "-network" + strconv.Itoa(i)
-				stream, err := c.DoWork(ctx)
-				if err != nil {
-					log.Fatalf("error while send info to server")
-				}
-				stream.Send(&poc_proto.DoWorkRequest{
-					Network: network,
-				})
-			}
-
+			doWork(c, clientID)
 		default:
 			fmt.Println("client does not have work to do!!")
 			time.Sleep(2000 * time.Millisecond)
 		}
 	}
+}
+
+func isDeadlineExceeded(err error) {
+	s, ok := status.FromError(err)
+	if ok {
+		if s.Code() == codes.DeadlineExceeded {
+			log.Printf("deadline exceeded\n", err)
+
+		}
+	}
+}
+
+func getWorkResponse(conn *grpc.ClientConn, c poc_proto.CheckServiceClient) (res *poc_proto.CheckWorkResponse) {
+	res, err := askServerWork(c)
+	if err != nil {
+		log.Printf("unexpected error from HasWork: %v\n", err)
+		for {
+
+			if conn.GetState() == connectivity.Ready {
+				res, _ = askServerWork(c)
+				break
+			} else {
+				time.Sleep(2000 * time.Millisecond)
+				fmt.Println("trying to reconnect to the server")
+			}
+		}
+	}
+	return
+}
+
+func askServerWork(c poc_proto.CheckServiceClient) (res *poc_proto.CheckWorkResponse, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second) //Deadline
+	defer cancel()
+	return c.HasWork(ctx, &poc_proto.CheckWorkRequest{})
+}
+
+func doWork(c poc_proto.CheckServiceClient, clientID int) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second) //Deadline
+	defer cancel()
+	fmt.Println("client has work to do!!")
+	stream, err := c.DoWork(ctx)
+	for i := 0; i < 10; i++ {
+		network := strconv.Itoa(clientID) + "-network" + strconv.Itoa(i)
+		if err != nil {
+			log.Fatalf("error while send info to server")
+		}
+		stream.Send(&poc_proto.DoWorkRequest{
+			Network: network,
+		})
+	}
+
+	endResp, errResp := stream.CloseAndRecv()
+	if errResp != nil {
+		log.Fatalf("error while receiving response from server", errResp)
+	}
+	fmt.Printf("server response to client %v: %v\n ", clientID, endResp.GetMessage())
 }

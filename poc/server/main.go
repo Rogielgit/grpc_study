@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"example.com/grpc_study/poc/poc_proto"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -28,27 +27,25 @@ var kasp = keepalive.ServerParameters{
 	Timeout:               1 * time.Second,  // Wait 1 second for the ping ack before assuming the connection is dead
 }
 
-// server implements EchoServer.
+// server implements POC.
 type server struct {
 	poc_proto.UnimplementedCheckServiceServer
 }
 
 func (s *server) HasWork(context.Context, *poc_proto.CheckWorkRequest) (*poc_proto.CheckWorkResponse, error) {
-	fmt.Print("Checking if server has work to client..\n")
-
+	fmt.Print("checking if server has work to client..\n")
 	var hasWork poc_proto.CheckWork
-	if checkWork() {
+	if hasWorkToClient() {
 		hasWork = poc_proto.CheckWork{
 			HasWork: true,
 		}
-	} else {
-		hasWork = poc_proto.CheckWork{
-			HasWork: false,
-		}
+		return &poc_proto.CheckWorkResponse{
+			Check: &hasWork,
+		}, nil
 	}
 
 	return &poc_proto.CheckWorkResponse{
-		Check: &hasWork,
+		Check: &poc_proto.CheckWork{HasWork: false},
 	}, nil
 }
 
@@ -57,7 +54,7 @@ func (s *server) DoWork(stream poc_proto.CheckService_DoWorkServer) error {
 	for {
 		res, err := stream.Recv()
 		if err == io.EOF {
-			stream.SendAndClose(&poc_proto.DoWorkResponse{
+			return stream.SendAndClose(&poc_proto.DoWorkResponse{
 				Message: "received all values",
 			})
 		}
@@ -71,7 +68,7 @@ func (s *server) DoWork(stream poc_proto.CheckService_DoWorkServer) error {
 	return nil
 }
 
-func checkWork() bool {
+func hasWorkToClient() bool {
 	rand.Seed(time.Now().UnixNano())
 	if rand.Intn(1000) > 800 {
 		return true
@@ -80,9 +77,6 @@ func checkWork() bool {
 }
 
 func main() {
-	flag.Parse()
-
-	//address := fmt.Sprintf(":%v", *port)
 	lis, err := net.Listen("tcp", "0.0.0.0:5051")
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
